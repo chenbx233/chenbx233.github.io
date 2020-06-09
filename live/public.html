@@ -1,36 +1,56 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
+ 
 <head>
-<meta charset="utf-8">
-<!-- TemplateBeginEditable name="doctitle" -->
-<title>公共信号</title>
-<!-- TemplateEndEditable -->
-<!-- TemplateBeginEditable name="head" -->
-<!-- TemplateEndEditable -->
+    <title>公共信号</title>
+    <!-- Video.js -->
+    <link href="video.js/dist/video-js.css" rel="stylesheet">
+    <script src="/flvjs/video.min.js"></script>
+    <script src="/flvjs/flv.min.js"></script>
+    <script src="/flvjs/videojs-flvjs.min.js"></script>
 </head>
-
+ 
 <body>
-	<link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
-	<video id="video" class="video-js vjs-default-skin" controls autoplay="autoplay" width="640" height="320" data-setup='{}'>
-          <source src="https://livesec.mudu.tv/watch/5d95aw.flv?auth_key=1590398661-604166-0-42bd2a5115306597562169656a68ac92" type="application/x-mpegURL" />
-    </video>
-	<script src="https://unpkg.com/video.js/dist/video.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.12.1/videojs-contrib-hls.min.js"></script>
+    <div>
+        <video id="videojs-flvjs-player" class="video-js vjs-default-skin vjs-big-play-centered"  width="1024" height="768"> </video>
+    </div>
 </body>
+ 
 </html>
-
-
+<script>
+var flvUrl = "https://livesec.mudu.tv/watch/5d95aw.flv?auth_key=1591783221-840755-0-fb60574e5a361b9d51f003d46a3ddbce";
+ 
+var player = videojs('videojs-flvjs-player', {
+    techOrder: ['html5', 'flvjs'],
+    flvjs: {
+        mediaDataSource: {
+            isLive: false,
+            cors: true,
+            withCredentials: false,
+        },
+    },
+    sources: [{
+        src: flvUrl,
+        type: 'video/mp4'
+    }],
+    controls: true,
+    preload: "none"
+}, function onPlayerReady() {
+    console.log('player ready')
+ 
+    player.on('error', (err) => {
+        console.log('first source load fail')
+ 
+        player.src({
+            src: flvUrl,
+            type: 'video/x-flv'
+        });
+ 
+        player.ready(function() {
+            console.log('player ready')
+            player.load();
+            player.play();
+        });
+    })
+});
 </script>
-
-	
-</body>
-</html>
-
-</html>
-
-
-</script>
-
-	
-</body>
-</html>
