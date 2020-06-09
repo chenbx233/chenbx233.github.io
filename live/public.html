@@ -3,54 +3,18 @@
  
 <head>
     <title>公共信号</title>
-    <!-- Video.js -->
-    <link href="video.js/dist/video-js.css" rel="stylesheet">
-    <script src="/flvjs/video.min.js"></script>
-    <script src="/flvjs/flv.min.js"></script>
-    <script src="/flvjs/videojs-flvjs.min.js"></script>
-</head>
  
-<body>
-    <div>
-        <video id="videojs-flvjs-player" class="video-js vjs-default-skin vjs-big-play-centered"  width="1024" height="768"> </video>
-    </div>
-</body>
- 
-</html>
+<script src="flvjs/flv.min.js"></script>
+<video id="videoElement"></video>
 <script>
-var flvUrl = "https://livesec.mudu.tv/watch/5d95aw.flv?auth_key=1591783221-840755-0-fb60574e5a361b9d51f003d46a3ddbce";
- 
-var player = videojs('videojs-flvjs-player', {
-    techOrder: ['html5', 'flvjs'],
-    flvjs: {
-        mediaDataSource: {
-            isLive: false,
-            cors: true,
-            withCredentials: false,
-        },
-    },
-    sources: [{
-        src: flvUrl,
-        type: 'video/mp4'
-    }],
-    controls: true,
-    preload: "none"
-}, function onPlayerReady() {
-    console.log('player ready')
- 
-    player.on('error', (err) => {
-        console.log('first source load fail')
- 
-        player.src({
-            src: flvUrl,
-            type: 'video/x-flv'
+    if (flvjs.isSupported()) {
+        var videoElement = document.getElementById('videoElement');
+        var flvPlayer = flvjs.createPlayer({
+            type: 'flv',
+            url: 'http://example.com/flv/video.flv'
         });
- 
-        player.ready(function() {
-            console.log('player ready')
-            player.load();
-            player.play();
-        });
-    })
-});
+        flvPlayer.attachMediaElement(videoElement);
+        flvPlayer.load();
+        flvPlayer.play();
+    }
 </script>
