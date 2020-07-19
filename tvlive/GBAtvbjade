@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- TemplateBeginEditable name="doctitle" -->
+<title>翡翠台（大湾区）</title>
+<!-- TemplateEndEditable -->
+<!-- TemplateBeginEditable name="head" -->
+<!-- TemplateEndEditable -->
+</head>
+
+<body>
+	<link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+	<video id="video" class="video-js vjs-default-skin" controls autoplay="autoplay" width="640" height="320" data-setup='{}'>
+          <source src="https://livesec.mudu.tv/watch/62av1k.m3u8?auth_key=1593918469-678636-0-9ea000998fb3cc463d88e8d91c21d7fc" type="application/x-mpegURL" />
+    </video>
+	<script src="https://unpkg.com/video.js/dist/video.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.12.1/videojs-contrib-hls.min.js"></script>
+</body>
+</html>
+
+
+</script>
+
+	
+</body>
+</html>
+
+</html>
+
+
+</script>
+
+	
+</body>
+</html>
