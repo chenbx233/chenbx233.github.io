@@ -1,0 +1,35 @@
+<!--除了31行那里-->
+<!--请在OBS的CSS自定义选项修改-->
+<!--CSS请参考w3school.com.cn/css/css_font.asp进行修改-->
+<title>OBS浏览器时间插件</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+</head>
+<script>
+    window.onload = function(){
+        function nowTime(ev,type){
+    function fillZero(v){
+        if(v<10){v='0'+v;}
+        return v;
+    }
+    (function(){
+        var d=new Date();
+        H=fillZero(d.getHours());
+        I=fillZero(d.getMinutes());
+        S=fillZero(d.getSeconds());
+        ev.innerHTML=+H+':'+I+':'+S;
+        setTimeout(arguments.callee,1000);
+    })();
+}
+nowTime(document.getElementById('time24'));
+    }
+</script>
+<body>
+    <div id="demo">
+    <H1></em><span id="time24"></span><H1>
+<!--请按照w3school.com.cn/tags/tag_hn.asp自己喜好修改-->
+</div>
+</body>
+</html>
