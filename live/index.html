@@ -1,230 +1,940 @@
-<!DOCTYPE html>
-<html>
+<template>
+  <!-- create by zzh 2020-6-20 23:18 -->
+  <div class="video-box" :style="{position:isFixed}">
+    <!--video 盒子-->
+    <div class="video-box-body" @mousemove="Enter" @mouseenter="Enter" @click="Enter">
+      <div class="loader" v-show="isLoading" title="2">
+        <svg
+          version="1.1"
+          id="loader-1"
+          x="0px"
+          y="0px"
+          width="100px"
+          height="100px"
+          viewBox="0 0 50 50"
+          style="enable-background:new 0 0 50 50;"
+          xml:space="preserve"
+        >
+          <path
+            fill="#000"
+            d="M43.935,25.145c0-10.318-8.364-18.683-18.683-18.683c-10.318,0-18.683,8.365-18.683,18.683h4.068c0-8.071,6.543-14.615,14.615-14.615c8.072,0,14.615,6.543,14.615,14.615H43.935z"
+            transform="rotate(110.097 25 25)"
+          >
+            <animateTransform
+              attributeType="xml"
+              attributeName="transform"
+              type="rotate"
+              from="0 25 25"
+              to="360 25 25"
+              dur="0.6s"
+              repeatCount="indefinite"
+            />
+          </path>
+        </svg>
+        <div class="load-msg">加载中,请稍后....</div>
+      </div>
+      <canvas v-show="isCanvas" class="video-body" id="canvas">您的浏览器不支持canvas</canvas>
+      <video
+        v-show="!isCanvas"
+        class="video-body"
+        @ended="ended($event)"
+        @error="error($event)"
+        @loadstart="loadstart($event)"
+        @canplay="canplay($event)"
+        @seeking="seeking($event)"
+        @seeked="seeked($event)"
+        @timeupdate="timeupdate($event)"
+        id="videoBody"
+      >您的浏览器不支持video</video>
+      <!--控制条盒子-->
+      <div class="video-control" v-if="isLoaded" v-show="isShowControl">
+        <div class="pull-left fontzero control-leftview">
+          <!--刷新键-->
+          <!-- <div class="control-btn loadbtn"></div> -->
+          <!--暂停/播放键-->
+          <div class="control-btn playbtn" :class="{pausebtn:isPlay}" @click="play"></div>
+        </div>
+        <div class="pull-left fontzero progress-box">
+          <div class="progress-box-body">
+            <!--播放时长-->
+            <div class="current-time pull-left">{{currentDuration|initTimeLength}}</div>
+            <div class="durationbar-box pull-left">
+              <!--总视频长度进度条-->
+              <div class="durationbar">
+                <!--缓冲进度条-->
+                <div class="bufferbar" :style="{width:getBuffPrecent+'%'}"></div>
+                <!--正在播放进度条-->
+                <div class="currentbar" :style="{width:(currentDuration/duration)*100+'%'}"></div>
+                <div
+                  class="drawbar"
+                  :class="{drawbar_active:isdrawbar_active}"
+                  :style="{left:(currentDuration/duration)*100+'%',transform: 'scale(2) rotateZ('+(currentDuration/duration)*4*720+'deg)'}"
+                ></div>
+                <input
+                  class="bar-input"
+                  @mouseleave="removeDrawbar"
+                  @mouseenter="setDrawbar"
+                  @mouseup="sliderUp()"
+                  @input="slider($event,'continue')"
+                  @change="slider($event,'')"
+                  type="range"
+                  min="0"
+                  max="100"
+                  :value="getCurrentDurationPercent"
+                />
+              </div>
+            </div>
+            <!--总时长-->
+            <div class="duration-time pull-left">{{duration|initTimeLength}}</div>
+          </div>
+        </div>
+        <div class="pull-left fontzero control-rightview">
+          <!-- 清晰度切换 -->
+          <div class="defintion-wrap" v-show="isShowDefintion">
+            <div
+              class="leavel"
+              v-for="(item,index) in VideoUrl"
+              :key="item.leave"
+              :class="{isActive:defintion==item.leavel}"
+              @click="chooseDefintion(item.leavel,index)"
+            >{{item.leavel}}</div>
+          </div>
+          <div class="defintion" @click="openDefintion">{{defintion}}</div>
+          <!-- 倍数播放 -->
+          <div class="speed-wrap" v-show="isShowSpeed">
+            <div
+              class="leavel"
+              v-for="item in Speed"
+              :key="item"
+              @click="chooseSpeed(item)"
+              :class="{isActive:speed==item}"
+            >X{{item.toFixed(1)}}</div>
+          </div>
+          <div class="speed" @click="openSpeed">X{{speed}}</div>
+          <!--音量键-->
+          <div class="control-btn mutedbtn" :class="{muted:isMuted}" @click="setMute()"></div>
+          <div class="volumn-btn-wrap">
+            <input
+              class="volume-input"
+              :style="{'background':'linear-gradient(to right, #a7bfe8, #6190e8 ' + volume + '%, #ebeff4)' }"
+              @input="setvolume($event)"
+              @change="setvolume($event,'end')"
+              type="range"
+              min="0"
+              max="100"
+              v-model="volume"
+            />
+            <div class="volumn-btn" :style="{left:(volume)+'px'}"></div>
+          </div>
 
-<head>
-    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-    <title>pingos flv.js player</title>
-    <link rel="stylesheet" type="text/css" href="demo.css" />
-</head>
+          <!--全屏键-->
+          <div class="control-btn fullscreenbar" @click="fullScreen"></div>
+          <!-- <div class="control-btn mime" @click="switchMime()">{{mime}}</div> -->
+        </div>
+      </div>
+      <div class="video-progress" v-if="ifisShowControl" v-show="!isShowControl">
+        <div class="video-progress-current" :style="{width:(currentDuration/duration)*100+'%'}"></div>
+      </div>
+    </div>
+  </div>
+</template>
+<script>
+export default {
+  data() {
+    return {
+      flvSdkPath: "https://cdn.bootcss.com/flv.js/1.5.0/flv.min.js",
+      mime: "flv",
+      currentDuration: "0",
+      currentDurationTemp: 0,
+      duration: "1",
+      getBuffPrecent: "",
+      isPlay: false,
+      refDom: null,
+      flv_player_instance: null,
+      volume: 0,
+      canvas: null,
+      context: null,
+      isCanvas: false,
+      isShowControl: false,
+      isLoading: false,
+      isdrawbar_active: false,
+      width: 0,
+      height: 0,
+      isFixed: "relative",
+      timer: null,
+      speed: 1,
+      defintion: "",
+      isShowSpeed: false,
+      isShowDefintion: false,
+      controlTimer: null,
+      getCurrentDurationPercent: 0,
+      isNotDrag: true, //标志是否拖动中，快进快退中避免更新进度条
+      flvVideoCode: "flv",
+      isLoaded: false,
+      defintionTimer: null,
+      speedTimer: null,
+      isMuted: false,
+    };
+  },
+  head() {
+    return {};
+  },
+  props: {
+    // VideoUrl: {
+    //   type: String,
+    //   default:
+    //     "http://store.91yunshi.com/storage/videoAuth/gaugua/41175fe7fdc74354a8d99a3f7aa1457d.mp4?videoType=flv&_t=1592535251776"
+    // },
+    Speed: {
+      type: Array,
+      default() {
+        return [0.5, 1.0, 1.5, 2];
+      },
+    },
+    ifisShowControl: {
+      type: Boolean,
+      default: true, //只支持flv或MP4
+    },
+    VideoCode: {
+      type: String,
+      default: "flv", //只支持flv或MP4
+      validator: function (value) {
+        // 这个值必须匹配下列字符串中的一个
+        return ["flv", "mp4"].indexOf(value) !== -1;
+      },
+    },
+    VideoUrl: {
+      type: Array,
+      default() {
+        return [
+          // {
+          //   url:
+          //     "http://store.91yunshi.com/storage/videoAuth/gaugua/41175fe7fdc74354a8d99a3f7aa1457d.mp4?videoType=flv&_t=1592535251776",
+          //   leavel: "高清"
+          // },
+          // {
+          //   url:
+          //     "http://store.91yunshi.com/storage/videoAuth/gaugua/41175fe7fdc74354a8d99a3f7aa1457d.mp4?videoType=flv&_t=1592535251776",
+          //   leavel: "超清"
+          // },
+          // {
+          //   url:
+          //     "http://store.91yunshi.com/storage/videoAuth/gaugua/41175fe7fdc74354a8d99a3f7aa1457d.mp4?videoType=flv&_t=1592535251776",
+          //   leavel: "蓝光"
+          // }
+        ];
+      },
+    },
+  },
+  watch: {
+    VideoUrl: {
+      handler(newVal, old) {
+        this.reloadUrl();
+      },
+      deep: true,
+    },
+  },
+  filters: {
+    initTimeLength(timeLength) {
+      let result = parseInt(timeLength);
+      let h =
+        Math.floor(result / 3600) < 10
+          ? "0" + Math.floor(result / 3600)
+          : Math.floor(result / 3600);
+      let m =
+        Math.floor((result / 60) % 60) < 10
+          ? "0" + Math.floor((result / 60) % 60)
+          : Math.floor((result / 60) % 60);
+      let s =
+        Math.floor(result % 60) < 10
+          ? "0" + Math.floor(result % 60)
+          : Math.floor(result % 60);
 
-<body>
-    
-    <div class="mainContainer">
-        <div>
-            <div id="streamURL">
-                <div class="url-input">
-                    <label for="sURL">Stream URL:</label>
-                    <input id="sURL" type="text" value="" />
-                    <button onclick="switch_mds()">Switch to MediaDataSource</button>
-                </div>
-                <div class="options">
-                    <input type="checkbox" id="enableStashBuffer" onchange="saveSettings()" checked/>
-                    <label for="enableStashBuffer">enableStashBuffer</label>
-                    <input type="checkbox" id="isLive" onchange="saveSettings()" checked/>
-                    <label for="isLive">isLive</label>
-                    <input type="checkbox" id="withCredentials" onchange="saveSettings()" />
-                    <label for="withCredentials">withCredentials</label>
-                    <input type="checkbox" id="hasAudio" onchange="saveSettings()" checked />
-                    <label for="hasAudio">hasAudio</label>
-                    <input type="checkbox" id="hasVideo" onchange="saveSettings()" checked />
-                    <label for="hasVideo">hasVideo</label>
-                    <label for="stashInitialSize">stashInitialSize:</label>
-                    <input id="stashInitialSize" type="text" value="10" />
-                </div>
-            </div>
-            <div id="mediaSourceURL" class="hidden">
-                <div class="url-input">
-                    <label for="msURL">MediaDataSource JsonURL:</label>
-                    <input id="msURL" type="text" value="http://127.0.0.1/flv/7182741.json" />
-                    <button onclick="switch_url()">Switch to URL</button>
-                </div>
-            </div>
-        </div>
-        <div class="video-container">
-            <div>
-                <video name="videoElement" class="centeredVideo" controls autoplay>
-                    Your browser is too old which doesn't support HTML5 video.
-                </video>
-            </div>
-        </div>
-        <div class="controls">
-            <button onclick="flv_load()">Load</button>
-            <button onclick="flv_start()">Start</button>
-            <button onclick="flv_pause()">Pause</button>
-            <button onclick="flv_destroy()">Destroy</button>
-            <input style="width:100px" type="text" name="seekpoint"/>
-            <button onclick="flv_seekto()">SeekTo</button>
-        </div>
-        <textarea name="logcatbox" class="logcatBox" rows="10" readonly></textarea>
-    </div>
 
-    <script src="flvjs/flv.js"></script>
-    
-    <script>
-        var checkBoxFields = ['enableStashBuffer', 'isLive', 'withCredentials', 'hasAudio', 'hasVideo'];
-        var streamURL, mediaSourceURL;
 
-        function flv_load() {
-            console.log('isSupported: ' + flvjs.isSupported());
-            if (mediaSourceURL.className === '') {
-                var url = document.getElementById('msURL').value;
-    
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', url, true);
-                xhr.onload = function (e) {
-                    var mediaDataSource = JSON.parse(xhr.response);
-                    flv_load_mds(mediaDataSource);
-                }
-                xhr.send();
-            } else {
-                var i;
-                var mediaDataSource = {
-                    type: 'flv'
-                };
-                for (i = 0; i < checkBoxFields.length; i++) {
-                    var field = checkBoxFields[i];
-                    /** @type {HTMLInputElement} */
-                    var checkbox = document.getElementById(field);
-                    mediaDataSource[field] = checkbox.checked;
-                }
-                mediaDataSource['url'] = document.getElementById('sURL').value;
-                console.log('MediaDataSource', mediaDataSource);
-                flv_load_mds(mediaDataSource);
-            }
-        }
+      return `${h}:${m}:${s}`;
+      // //根据秒数格式化时间
+      // timeLength = parseInt(timeLength);
+      // var second = timeLength % 60;
+      // var minute = (timeLength - second) / 60;
+      // return (
+      //   (minute < 10 ? "0" + minute : minute) +
+      //   ":" +
+      //   (second < 10 ? "0" + second : second)
+      // );
+    },
+    // speedFilter(val){
+    //   console.log(val);
+    //   let num = parseInt(val)
+    //   return num.toFixed(1)
+    // }
+  },
+  methods: {
+    switchMime() {
+      if (this.mime == "flv") {
+        this.mime = "mp4";
+      } else {
+        this.mime = "flv";
+      }
+      this.$emit("mime", this.mime);
+    },
+    setDrawbar() {
+      this.isdrawbar_active = true;
+    },
+    removeDrawbar() {
+      this.isdrawbar_active = false;
+    },
+    Enter() {
+      clearTimeout(this.controlTimer);
+      this.isShowControl = true;
+      this.controlTimer = setTimeout(() => {
+        this.isShowControl = false;
+      }, 5000);
+    },
+    openDefintion() {
+      //打开清晰度切换容器
+      clearTimeout(this.defintionTimer);
+      this.isShowDefintion = true;
+      this.defintionTimer = setTimeout(() => {
+        this.isShowDefintion = false;
+      }, 3000);
+    },
+    chooseDefintion(defintion, index) {
+      localStorage.setItem("flv_defintion", index);
+      localStorage.setItem(
+        "flv_defintion_currenttime",
+        this.refDom.currentTime
+      );
+      //选择清晰度
+      this.defintion = defintion;
+      this.isShowDefintion = false;
+      this.reloadUrl();
+    },
+    reloadUrl() {
+      this.flv_destroy();
+      this.initPlay();
+    },
+    openSpeed() {
+      //打开播放速度容器
+      clearTimeout(this.speedTimer);
+      this.isShowSpeed = true;
+      this.speedTimer = setTimeout(() => {
+        this.isShowSpeed = false;
+      }, 3000);
+    },
+    chooseSpeed(speed) {
+      //选择播放速度
+      this.refDom.playbackRate = speed;
+      this.speed = speed;
+      this.isShowSpeed = false;
+    },
+    setvolume(e, isend) {
+      //设置音量
+      let dom = e.target;
+      if (isend == "end" && this.isMuted) {
+        this.refDom.muted = false;
+        this.isMuted = false;
+      }
+      this.refDom.volume = dom.value / 100;
+      localStorage.setItem("fly_volume", dom.value / 100);
+      this.volume = dom.value;
+    },
+    slider(e, type) {
+      //进度滑动设置
+      let dom = e.target;
+      this.currentDuration = this.currentDurationTemp =
+        (Number(dom.value) * this.duration) / 100;
+      if (type == "continue") {
+        this.refDom.pause();
+      } else {
+        this.refDom.currentTime = this.currentDuration;
+      }
+    },
+    sliderUp() {
+      this.refDom.currentTime = this.currentDurationTemp;
+      // this.isNotDrag=true;
+      //  console.log( this.isNotDrag);
+      this.refDom.play();
+    },
+    init(videoItem) {
+      this.isLoaded = false; //播放器数据初始化能播放后再显示UI页面
+      let url = "";
+      this.refDom = document.getElementById("videoBody");
+      if (!!!videoItem) return;
+      url = videoItem.url;
+      console.log(url);
+      //flv播放器初始化
+      window.cancelAnimationFrame(this.timer);
+      if (flvjs.isSupported()) {
+        this.flv_player_instance = flvjs.createPlayer(
+          {
+            seekType: "range",
+            type: this.flvVideoCode,
+            url: url,
+            isLive:false
+          },
+          {
+            enableWorker: true,
+            lazyLoad: false,
+            lazyLoadMaxDuration: 20 * 60,
+          }
+        );
+        this.defintion = videoItem && videoItem.leavel;
+        this.flv_player_instance.attachMediaElement(this.refDom);
+        this.flv_player_instance.load(); //加载
+        this.flv_player_instance.play();
+        this.flv_player_instance.on("error", (err) => {
+          // console.log('err', err);
+          if (err == "MediaError") {
+            if (this.flvVideoCode == "flv") {
+              //如果是格式错误，尝试切换格式播放
+              this.flvVideoCode = "mp4";
+              console.warn("尝试切换mp4格式播放");
+            } else {
+              console.warn("尝试切换flv格式播放");
+              this.flvVideoCode = "flv";
+            }
+            this.reloadUrl();
+          }
+        });
+      } else {
+        this.refDom.src = url;
+      }
+    },
+    flv_destroy() {
+      if (this.flv_player_instance) {
+        this.flv_player_instance.pause();
+        this.flv_player_instance.unload();
+        this.flv_player_instance.detachMediaElement();
+        this.flv_player_instance.destroy();
+        this.flv_player_instance = null;
+      }
+    },
+    setMute() {
+      if (!this.refDom.muted) {
+        this.refDom.muted = true;
+        this.isMuted = true;
+      } else {
+        this.refDom.muted = false;
+        this.isMuted = false;
+      }
+    },
+    canplay(e) {
+      this.isLoaded = true;
+      let currentTime = localStorage.getItem("flv_defintion_currenttime"); //保存上次进度，切换清晰度的时候还原进度
+      //资源可以播放
+      let dom = e.target;
+      if (!!currentTime) {
+        dom.currentTime = currentTime;
+        localStorage.removeItem("flv_defintion_currenttime");
+      }
+      this.duration = dom.duration || 1;
+      this.currentDuration = dom.currentTime || 0;
+      dom.volume = localStorage.getItem("fly_volume") || 0.5;
+      this.volume = dom.volume * 100;
+      this.speed = dom.playbackRate.toFixed(1);
+      dom.play();
+      this.isLoading = false;
+      this.$emit("isplay", true);
+    },
+    getCanvasInit() {
+      //canvas初始化
+      this.canvas = document.getElementById("canvas");
+      this.context = canvas.getContext("2d");
+      this.canvas.width = document.body.clientWidth;
+      this.canvas.height = document.body.clientHeight;
+      this.drawCanvas();
+    },
+    drawCanvas() {
+      //绘制视频到canvas
+      this.context.drawImage(
+        this.refDom,
+        0,
+        0,
+        this.canvas.width,
+        this.canvas.height
+      ); //绘制视频
+      this.timer = window.requestAnimationFrame(this.drawCanvas);
+    },
+    play() {
+      //播放暂停
+      if (this.refDom.paused) {
+        this.refDom.play();
+        this.isPlay = false;
+      } else {
+        this.refDom.pause();
+        this.isPlay = true;
+      }
+    },
+    fullScreen() {
+      if (this.isFixed == "fixed") {
+        //如果全屏退出全屏
+        this.isFixed = "relative";
+        // this.isCanvas = false;
+        // window.cancelAnimationFrame(this.timer);
+      } else {
+        this.isFixed = "fixed";
+        // this.isCanvas = true;
+        // this.getCanvasInit();
+      }
+    },
+    ended(e) {
+      this.$emit("flvEnded", true);
+    },
+    seeking(e) {
+      // console.log(e);
+      this.isLoading = true;
+    },
+    seeked(e) {
+      this.isLoading = false;
 
-        function flv_load_mds(mediaDataSource) {
-            var element = document.getElementsByName('videoElement')[0];
-            if (typeof player !== "undefined") {
-                if (player != null) {
-                    player.unload();
-                    player.detachMediaElement();
-                    player.destroy();
-                    player = null;
-                }
-            }
-            player = flvjs.createPlayer(mediaDataSource, {
-                enableWorker: false,
-                lazyLoadMaxDuration: 3 * 60,
-                seekType: 'range',
-            });
-            player.attachMediaElement(element);
-            player.load();
-        }
 
-        function flv_start() {
-            player.play();
-        }
 
-        function flv_pause() {
-            player.pause();
-        }
+      // console.log(e);
+    },
+    error(e) {
+      let err = e.target.error;
+      console.error(err);
 
-        function flv_destroy() {
-            player.pause();
-            player.unload();
-            player.detachMediaElement();
-            player.destroy();
-            player = null;
-        }
 
-        function flv_seekto() {
-            var input = document.getElementsByName('seekpoint')[0];
-            player.currentTime = parseFloat(input.value);
-        }
 
-        function switch_url() {
-            streamURL.className = '';
-            mediaSourceURL.className = 'hidden';
-            saveSettings();
-        }
+      if (err.code == 4) {
+        //error.code; //1.用户终止 2.网络错误 3.解码错误 4.URL无效
+        if (this.flvVideoCode == "flv") {
+          //如果是格式错误，尝试切换格式播放
+          this.flvVideoCode = "mp4";
+          console.warn("尝试切换mp4格式播放");
+        } else {
+          console.warn("尝试切换flv格式播放");
+          this.flvVideoCode = "flv";
+        }
+        this.reloadUrl();
+      }
+      this.isLoading = false;
+    },
+    loadstart() {
+      this.isLoading = true;
+    },
+    timeupdate(e) {
+      //播放进度更新回调
+      let dom = e.target;
+      // 视频时长
+      this.duration = dom.duration || 1;
+      // currentTime 当前播放时长
+      this.currentDuration = dom.currentTime;
+      //当前缓冲进度时长结束位置
+      let buffLength = dom.buffered.length;
+      if (buffLength != 0) {
+        var currentBuffer = dom.buffered.end(buffLength - 1);
+        var percentage = (100 * currentBuffer) / this.duration;
+        this.getBuffPrecent = percentage;
+      }
+      if (this.isNotDrag) {
+        this.getCurrentDurationPercent =
+          (this.currentDuration / this.duration) * 100;
+      }
+    },
+    initPlay() {
+      let defintion = localStorage.getItem("flv_defintion");
+      if (!!defintion) {
+        //如果本地保存了清晰度自动选择之前清晰度,否则加载第一个
 
-        function switch_mds() {
-            streamURL.className = 'hidden';
-            mediaSourceURL.className = '';
-            saveSettings();
-        }
 
-        function ls_get(key, def) {
-            try {
-                var ret = localStorage.getItem('flvjs_demo.' + key);
-                if (ret === null) {
-                    ret = def;
-                }
-                return ret;
-            } catch (e) {}
-            return def;
-        }
 
-        function ls_set(key, value) {
-            try {
-                localStorage.setItem('flvjs_demo.' + key, value);
-            } catch (e) {}
-        }
+        this.insertScriptTag(() => {
+          this.init(this.VideoUrl[defintion]);
+        });
+      } else {
+        this.insertScriptTag(() => {
+          this.init(this.VideoUrl[0]);
+        });
+      }
+    },
+    insertScriptTag(cb) {
+      const _this = this;
+      let playerScriptTag = document.getElementById("playerScriptTag");
+      // 如果这个tag不存在，则生成相关代码tag以加载代码
+      if (playerScriptTag === null) {
+        playerScriptTag = document.createElement("script");
+        playerScriptTag.type = "text/javascript";
+        playerScriptTag.id = "playerScriptTag";
+        let s = document.getElementsByTagName("head")[0];
+        playerScriptTag.onload = playerScriptTag.onreadystatechange = function () {
+          if (
+            !this.readyState ||
+            this.readyState === "loaded" ||
+            this.readyState === "complete"
+          ) {
+            cb && cb();
+            playerScriptTag.onload = playerScriptTag.onreadystatechange = null;
+          }
+        };
+        playerScriptTag.src = this.flvSdkPath;
+        s.appendChild(playerScriptTag);
+      } else {
+        cb && cb();
+      }
+    },
+  },
+  mounted() {
+    // console.log(this.VideoUrl);
+    if (this.VideoUrl.length == 0) {
+      return new Error("未输入地址");
+    }
+    this.flvVideoCode = this.VideoCode;
+    this.insertScriptTag(() => {
+      this.initPlay();
+    });
+  },
+};
+</script>
+<style scoped>
+/*video样式*/
+.video-box {
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  background: #000;
+  width: 100%;
+  height: 100%;
+  z-index: 999;
+}
+.video-box-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.video-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 15;
+}
+#canvas {
+  width: 80%;
+  left: 10%;
+}
+/*控制条样式*/
+.video-control {
+  display: flex;
+  position: absolute;
+  width: 100%;
+  height: 60px;
+  padding: 5px;
+  line-height: 50px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 15px 15px rgba(0, 0, 0, 0.5);
+  transition-duration: 300ms;
+  z-index: 999;
+  left: 0;
+  bottom: 0;
+}
+.control-leftview {
+  display: flex;
+  position: relative;
+  z-index: 5;
+  width: 120px;
+}
+.control-btn {
+  display: inline-block;
+  width: 25px;
+  height: 25px;
+  background: rgba(256, 256, 256, 0.5);
+  cursor: pointer;
+}
+.control-leftview .control-btn {
+  margin-right: 10px;
+}
+.progress-box {
+  width: 85%;
+  height: 50px;
+  padding-right: 20px;
+}
+.progress-box-body {
+  display: flex;
 
-        function saveSettings() {
-            if (mediaSourceURL.className === '') {
-                ls_set('inputMode', 'MediaDataSource');
-            } else {
-                ls_set('inputMode', 'StreamURL');
-            }
-            var i;
-            for (i = 0; i < checkBoxFields.length; i++) {
-                var field = checkBoxFields[i];
-                /** @type {HTMLInputElement} */
-                var checkbox = document.getElementById(field);
-                ls_set(field, checkbox.checked ? '1' : '0');
-            }
-            var msURL = document.getElementById('msURL');
-            var sURL = document.getElementById('sURL');
-            var stashInitSize = document.getElementById('stashInitialSize');
-            ls_set('msURL', msURL.value);
-            ls_set('sURL', sURL.value);
-            ls_set('stashInitialSize', stashInitSize.value);
-            console.log('save');
-        }
 
-        function loadSettings() {
-            var i;
-            for (i = 0; i < checkBoxFields.length; i++) {
-                var field = checkBoxFields[i];
-                /** @type {HTMLInputElement} */
-                var checkbox = document.getElementById(field);
-                var c = ls_get(field, checkbox.checked ? '1' : '0');
-                checkbox.checked = c === '1' ? true : false;
-            }
 
-            var msURL = document.getElementById('msURL');
-            var sURL = document.getElementById('sURL');
-            msURL.value = ls_get('msURL', msURL.value);
-            sURL.value = ls_get('sURL', sURL.value);
-            if (ls_get('inputMode', 'StreamURL') === 'StreamURL') {
-                switch_url();
-            } else {
-                switch_mds();
-            }
-        }
+  width: 100%;
+  height: 100%;
+}
+.current-time,
+.duration-time {
+  width: 60px;
+  text-align: center;
+  color: #fff;
+}
+.current-time {
+  margin-right: -60px;
+  position: relative;
+  z-index: 5;
+}
+.duration-time {
+  margin-left: -60px;
+  position: relative;
+  z-index: 5;
+}
+.durationbar-box {
+  position: relative;
+  width: 100%;
+  padding: 0 70px;
+}
+.durationbar {
+  width: 100%;
+  height: 6px;
+  margin-top: 23px;
+  background: #fff;
+  border-radius: 50px;
+  position: relative;
+}
+.bufferbar,
+.currentbar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50px;
+  z-index: 5;
+  cursor: pointer;
+}
+.currentbar {
+  background: linear-gradient(to right, #a7bfe8, #6190e8);
+  z-index: 10;
+}
+.drawbar {
+  position: absolute;
+  background: #fff;
+  width: 20px;
+  height: 20px;
+  left: 0;
+  top: -5px;
+  z-index: 10;
+  margin-left: -4px;
+  border-radius: 50px;
+  cursor: pointer;
+  background-color: transparent;
+  background-image: url("../assets/image/thumbs-sprite.png");
+  background-position: 0 0;
+  background-size: cover;
+  transform: scale(1.9) rotateZ(10deg);
+}
+.drawbar_active {
+  background-position: 100% 0px;
+}
+.control-rightview {
+  cursor: pointer;
+  position: relative;
+  width: 460px;
+  z-index: 5;
+}
+.speed {
+  display: inline-block;
+  width: 40px;
+  color: #fff;
+  font-size: 16px;
+}
+.defintion {
+  display: inline-block;
+  color: #fff;
+  font-size: 14px;
+  width: 40px;
+}
+.isActive {
+  color: coral;
+}
+.leavel {
+  cursor: pointer;
+}
+.speed-wrap {
+  position: absolute;
+  bottom: 50px;
+  left: 44px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 0 10px;
+  border-radius: 6px;
+  line-height: 30px;
+  font-size: 16px;
+}
+.defintion-wrap {
+  position: absolute;
+  bottom: 50px;
+  left: -10px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 0 10px;
+  border-radius: 6px;
+  line-height: 30px;
+  font-size: 16px;
+}
+.control-rightview .control-btn {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.control-leftview .control-btn:last-child,
+.control-rightview .control-btn:first-child {
+  margin: 0;
+}
+.control-btn.loadbtn {
+  /* background: url(../img/load.png) no-repeat center; */
+  background-size: 100%;
+}
+.control-btn.playbtn {
+  width: 50px;
+  height: 50px;
+  background: url("../assets/image/pause.png") no-repeat center;
+  background-size: 100%;
+}
+.control-btn.playbtn.pausebtn {
+  background: url("data:image/svg+xml;base64,PHN2ZyBmaWxsPSIjZmZmZmZmIiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik04IDV2MTRsMTEtN3oiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+Cg==")
+    no-repeat center;
 
-        function showVersion() {
-            var version = flvjs.version;
-            document.title = document.title + " (v" + version + ")";
-        }
 
-        var logcatbox = document.getElementsByName('logcatbox')[0];
-        flvjs.LoggingControl.addLogListener(function(type, str) {
-            logcatbox.value = logcatbox.value + str + '\n';
-            logcatbox.scrollTop = logcatbox.scrollHeight;
-        });
 
-        document.addEventListener('DOMContentLoaded', function () {
-            streamURL = document.getElementById('streamURL');
-            mediaSourceURL = document.getElementById('mediaSourceURL');
-            loadSettings();
-            showVersion();
-            flv_load();
-        });
-    </script>
-    
-</body>
+  background-size: 100%;
+}
+.control-btn.mutedbtn {
+  background: url("data:image/svg+xml;base64,PHN2ZyBmaWxsPSIjZmZmZmZmIiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik0zIDl2Nmg0bDUgNVY0TDcgOUgzem0xMy41IDNjMC0xLjc3LTEuMDItMy4yOS0yLjUtNC4wM3Y4LjA1YzEuNDgtLjczIDIuNS0yLjI1IDIuNS00LjAyek0xNCAzLjIzdjIuMDZjMi44OS44NiA1IDMuNTQgNSA2Ljcxcy0yLjExIDUuODUtNSA2LjcxdjIuMDZjNC4wMS0uOTEgNy00LjQ5IDctOC43N3MtMi45OS03Ljg2LTctOC43N3oiLz4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KPC9zdmc+Cg==")
+    no-repeat center;
+  background-size: 100%;
+}
+.control-btn.muted {
+  background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAACZklEQVR4Xu2avy4FQRTGvxM9SomSChGVRCehUQkJiV6vEjrUXkNF4s8TeAQVFRoPIPECnxyZm6yxu7PuWHd2z2xzczN39u73m++c+bNHYPwS4/qRAWQHGCeQQ8C4AUaTBEluAFgGcCEiL6MchH8NAZIzAI4B7DvRNyKybQIAyQMnfqooWET+dRB82K3/Ocl1AEcA9PPH1VsAJHWk1e468pVXLwGQ1BhX8RrztVevAJBccXbfDAkftPcCAMlxJ1xjfaypeP1d5wGQ3HN2X/yN8KQcQHIHwAmA+WFExPQZuQNIqvDTGBExfVMA8ABgKUZETN8UADBGQGzfDGDUS2GS2QGxNo7pXxcChdlpGsA9gMPQ9tntOM8BrAF4BXArImdVzyipOqBidnoEsCsiT2WCSM4BuCyZzrXPVelmLGEAVbNTKYQa8ar7UUQWugbgHcBkhXW/QQiI11t8iMhE1wBcA9iqyS9fEFx7me2LXStPnlLOAbqVvgssz5+dytkAqM2q5JksABXUwNqhCag2aX7tRlNNggNlERCC4jsBYEgnNBLfGQAFCJoT6uJdf6p5QWO+dK3gx0zyIeCFgk0AQ+SB/oTAEOIHpmkEIekQiBDfGEKyANyuzu5CiKT5pbD5zZD57XDZcb2dAxG3+hu8sLF3JBba5v1Ve7LT4F8JDN0nAyBp/tWY7ZejXra193o8lCRC7b0okAiJDLWbLpEpwjFbJOU7xGyZnOcGu4WSHgibpbIlYWGzWNpzg91yeQ/Eqvv+Fqr4CE3Bse2tl8vHPmDb/TOAtgmnfv/sgNRHqO3nyw5om3Dq9/8EUtNyUHSPJr8AAAAASUVORK5CYII=")
+    no-repeat center;
+  background-size: 100%;
+}
+.control-btn.fullscreenbar {
+  background: url("data:image/svg+xml;base64,PHN2ZyBmaWxsPSIjZmZmZmZmIiBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz4KICAgIDxwYXRoIGQ9Ik03IDE0SDV2NWg1di0ySDd2LTN6bS0yLTRoMlY3aDNWNUg1djV6bTEyIDdoLTN2Mmg1di01aC0ydjN6TTE0IDV2MmgzdjNoMlY1aC01eiIvPgo8L3N2Zz4K")
+    no-repeat center;
+  background-size: 100%;
+}
+.control-btn.mime {
+  line-height: 25px;
+  background: none;
+  color: #fff;
+}
+.bar-input {
+  position: absolute;
+  height: 100%;
+  left: 0;
+  right: 0;
+  margin: auto;
+  width: 100%;
+  opacity: 0;
+  z-index: 999;
+  cursor: pointer;
+}
+.volumn-btn-wrap {
+  position: relative;
+  display: inline-block;
+  width: 120px;
+}
+/* .volumn-btn-slider{
+  
+} */
+.volumn-btn {
+  position: absolute;
+  left: 0;
+  top: 20px;
+  height: 20px;
+  width: 20px;
+  transform: translateY(0px);
+  background: #fff;
+  border-radius: 15px;
+  border: 5px solid #6190e8;
+  z-index: -1;
+}
+.volume-input {
+  height: 100%;
+  width: 100%;
+  /* opacity: 0; */
+  z-index: 999;
+  cursor: pointer;
+}
+.loader {
+  width: 140px;
+  height: 140px;
+  /* border: 1px solid red; */
+  text-align: center;
+  position: absolute;
+  top: calc(50% - 70px);
+  left: calc(50% - 70px);
+  padding-top: 15px;
+  z-index: 9999;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 5px;
+}
 
-</html>
+
+
+#loader-1 {
+  width: 60px;
+  height: 60px;
+}
+svg path,
+svg rect {
+  fill: #17a085;
+}
+.load-msg {
+  height: 50px;
+  line-height: 50px;
+  color: #fff;
+  font-size: 13px;
+  /* margin-top: 20px; */
+}
+.volume-input {
+  /*-webkit-box-shadow: 0 1px 0 0px #424242, 0 1px 0 #060607 inset, 0px 2px 10px 0px black inset, 1px 0px 2px rgba(0, 0, 0, 0.4) inset, 0 0px 1px rgba(0, 0, 0, 0.6) inset;*/
+  -webkit-appearance: none; /*去除默认样式*/
+  margin-top: 24px;
+  background-color: #ebeff4;
+  /*border-radius: 15px;*/
+  -webkit-appearance: none;
+  height: 4px;
+  padding: 0;
+  border: none;
+  outline: none;
+  /*input的长度为80%，margin-left的长度为10%*/
+}
+.volume-input::-webkit-slider-thumb {
+  -webkit-appearance: none; /*去除默认样式*/
+  cursor: pointer;
+  top: 0;
+  height: 20px;
+  width: 20px;
+  transform: translateY(0px);
+  background: #fff;
+  border-radius: 15px;
+  border: 5px solid #6190e8;
+  /*-webkit-box-shadow: 0 -1px 1px #fc7701 inset;*/
+}
+video:-webkit-full-screen {
+  z-index: 9 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+video::-webkit-media-controls {
+  display: none !important;
+}
+.video-progress {
+  position: absolute;
+  width: 100%;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  z-index: 999999;
+}
+.video-progress-current {
+  position: absolute;
+  width: 0%;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: tomato;
+}
+</style>
