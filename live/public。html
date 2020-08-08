@@ -142,7 +142,7 @@
 export default {
   data() {
     return {
-      flvSdkPath: "https://cdn.bootcss.com/flv.js/1.5.0/flv.min.js",
+      flvSdkPath: "flv.js/1.5.0/flv.min.js",
       mime: "flv",
       currentDuration: "0",
       currentDurationTemp: 0,
